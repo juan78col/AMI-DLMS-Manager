@@ -1,0 +1,51 @@
+# Build directories
+/build/
+/out/
+
+# CMake files
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/compile_commands.json
+
+# Visual Studio
+/.vs/
+*.vcxproj*
+*.sln
+*.user
+*.suo
+
+# Ninja
+/rules.ninja
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Object files
+*.o
+*.obj
+*.lo
+
+# Logs
+*.log
+
+# IDE files
+/.idea/
+*.vscode/
+
+# Generated files
+/build/**/CMakeFiles/
+
+# Ignore third-party libraries and packages
+/extern/
+/third_party/
+
+# Do not commit local secrets
+*.pem
+*.key
+*.crt
+#config
+amiconfig.ini
