@@ -28,6 +28,7 @@
 *.o
 *.obj
 *.lo
+*.d
 
 # Logs
 *.log
@@ -49,3 +50,4 @@
 *.crt
 #config
 amiconfig.ini
+/.gitattributes
