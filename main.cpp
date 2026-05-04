@@ -98,7 +98,7 @@ int main()
     {
         boost::asio::io_context io_context;
         
-        std::string conn_str = "host=10.9.0.1 port=5432 dbname=medicion_avanzada user=principal password=d113B01dB4 application_name=myapp";
+        std::string conn_str = "host=10.9.0.1 port=5432 dbname=xxxxxx user=principal password=xxxxxx application_name=myapp";
         // Crear pool específico de Postgres (código existente conservado)
         AsyncPostgresPool pool(io_context, conn_str, 5);
         asio::co_spawn(io_context, pool.initialize(), asio::detached);
