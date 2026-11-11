@@ -41,7 +41,7 @@ Los perfiles parametrizan direcciones, interfaz, autenticación, seguridad, suit
 - Las credenciales de asociación servidor–DCU son distintas de las claves de los medidores que el DCU administra. ZStar debe resolver secretos propios del DCU; no reutilizar claves de sus medidores para autenticar el canal al concentrador.
 - Protege la base, los respaldos y los canales de administración. Rotar la clave maestra requiere un procedimiento de recifrado coordinado; perderla impide recuperar los secretos existentes.
 
-La migración local `sql/008_dcu_connection_data.sql` agrega almacenamiento y funciones de acceso para credenciales de DCU. **La carpeta `sql/` está excluida por `.gitignore`; por lo tanto, esa migración no está incluida en una clonación pública normal.** Si se publica el proyecto manteniendo esa exclusión, distribuye las migraciones y su procedimiento de aplicación por un canal controlado, o proporciona un esquema compatible por separado. No conectes el servicio esperando que las funciones/tablas existan sin haberlas provisionado.
+La base de datos debe contar con las tablas, funciones y perfiles requeridos por la configuración de dispositivos y credenciales. Prepara y aplica el esquema correspondiente antes de iniciar el servicio; la compilación no crea ni modifica objetos de PostgreSQL.
 
 ## Sistema de plugins
 
@@ -49,7 +49,7 @@ El plugin es un adaptador de identificación de heartbeat, no una implementació
 
 Al inicio, `PluginLoader` busca bibliotecas dinámicas en `./plugins` (`.dll` en Windows, `.so` en Linux), carga los símbolos `create_plugin`/`destroy_plugin` y ordena las firmas para probar primero las más específicas. La carpeta se crea/resuelve respecto al directorio de trabajo del proceso. Un plugin nuevo debe compilarse con una ABI y toolchain compatibles con el ejecutable y desplegarse en ese directorio.
 
-**Importante para usuarios de GitHub:** `.gitignore` excluye toda la carpeta `plugins/`; sus fuentes no aparecerán en una clonación pública salvo que se publiquen por separado o se incluyan deliberadamente en Git. El CMake raíz tampoco incorpora automáticamente `plugins/CMakeLists.txt`. Además, el cargador busca bibliotecas en `./plugins`, mientras que el CMake local de plugins declara `plugins_build` como directorio de salida. El empaquetado/despliegue debe resolver esa diferencia y proporcionar las bibliotecas requeridas; no basta con compilar el ejecutable principal.
+El ejecutable principal no compila ni instala automáticamente las bibliotecas de plugins. Despliega las bibliotecas compatibles (`.dll` en Windows, `.so` en Linux) dentro de `./plugins`, relativa al directorio de trabajo del proceso. El empaquetado de cada instalación debe compilar los plugins para la ABI y plataforma del ejecutable y colocarlos en esa ruta.
 
 Para añadir soporte de fabricante de forma mantenible:
 
@@ -82,30 +82,16 @@ La compilación del ejecutable no aplica migraciones de PostgreSQL, no crea perf
 
 La base de DLMS/COSEM puede reutilizarse cuando un DCU de otro fabricante implemente las mismas asociaciones y servicios estándar. Lo que suele variar y debe confirmarse con documentación/trazas del equipo es el transporte, framing exterior, heartbeat/identificación, direccionamiento, seguridad y operaciones de administración del concentrador.
 
-Para ZStar/IDIS, el código actual tiene listener Wrapper independiente, resolución separada del perfil/secretos del DCU y una ruta de asociación con bootstrap/Invocation Counter para el caso seguro. Sin embargo, no está validado extremo a extremo con un DCU y su almacenamiento aún depende de la migración SQL excluida por `.gitignore`. Tampoco se ha portado aquí el flujo antiguo `WriteListMeters()` que registra la lista de medidores y sus claves dentro del objeto DLMS del DCU. Por ello, ZStar no forma parte del alcance actualmente verificado hasta completar las pruebas y ese flujo, si el producto lo requiere.
+Para ZStar/IDIS, el código actual tiene listener Wrapper independiente, resolución separada del perfil/secretos del DCU y una ruta de asociación con bootstrap/Invocation Counter para el caso seguro. Sin embargo, no está validado extremo a extremo con un DCU y requiere que la base de datos tenga configuradas las funciones y los campos correspondientes a los secretos propios del concentrador. Tampoco se ha portado aquí el flujo antiguo `WriteListMeters()` que registra la lista de medidores y sus claves dentro del objeto DLMS del DCU. Por ello, ZStar no forma parte del alcance actualmente verificado hasta completar las pruebas y ese flujo, si el producto lo requiere.
 
 Próximas mejoras recomendadas:
 
 - Proveer de forma versionada y segura el esquema/migraciones requeridos para perfiles, dispositivos y secretos.
-- Crear un empaquetado reproducible para plugins (compilación, ABI, ubicación y despliegue) o decidir cuáles plugins se publicarán con el proyecto.
+- Automatizar la compilación, empaquetado y despliegue de plugins compatibles por plataforma.
 - Añadir pruebas automatizadas de parsing de heartbeat/framing y pruebas de integración de las máquinas DLMS con respuestas simuladas.
 - Validar equipos y firmwares reales: asociación, seguridad/HLS, lectura, perfiles, comandos, timeouts, fragmentación de tramas y reconexión.
 - Implementar adaptadores por fabricante solo en las diferencias de transporte/operación, manteniendo el core DLMS compartido donde corresponda.
 - Completar y validar el registro de medidores en DCU (por ejemplo, portar `WriteListMeters()` de forma tipada y con pruebas), sin mezclar las claves del DCU con las de los medidores.
-
-## Archivos y exclusiones de `.gitignore`
-
-El `.gitignore` actual excluye artefactos generados/de desarrollo y varias carpetas de despliegue o integración. Entre las reglas relevantes están `/extern/`, `/third_party/`, `/plugins/`, `/.agent/`, `/docker/`, `/config/`, `/sql/`, `/.gitattributes`, `/build/`, `/out/`, `.vs/`, soluciones/archivos de Visual Studio, bibliotecas y ejecutables, archivos objeto y logs. También excluye `*.pem`, `*.key`, `*.crt`, `amiconfig.ini` y `CMakeUserPresets.json`.
-
-Esto significa que una publicación normal no incluiría fuentes/plugins, SQL, Docker, configuración local ni archivos de `.agent`; tampoco incluiría certificados/llaves con esas extensiones ni ajustes locales de CMake. Los usuarios deben obtener los componentes requeridos por los canales de distribución definidos por el mantenedor. Las exclusiones del `.gitignore` **no eliminan del repositorio archivos que ya estén siendo seguidos por Git**; verifica el contenido efectivo del commit/publicación antes de anunciarlo.
-
-## Estructura principal (archivos versionados)
-
-- `src/`, `include/`: servidor, sesiones, estados DLMS, perfiles, secretos y contrato/cargador de plugins.
-- `plugins/`: implementaciones locales de plugins, excluidas por `.gitignore` salvo decisión explícita de publicación.
-- `sql/`: scripts locales de esquema/migración, excluidos por `.gitignore`.
-- `CMakeLists.txt`: build del ejecutable principal.
-- `README.md`, `LICENSE`, `DEPENDENCIES.md`, `THIRD_PARTY_NOTICES.md`, `GURUX_INSTALL.md`: documentación y avisos de licencia.
 
 ## Licencia y dependencias
 
@@ -155,7 +141,7 @@ Profiles configure addressing, interface, authentication, security, suite, confo
 - Server-to-DCU association credentials are distinct from the credentials of meters managed by that DCU. ZStar must resolve its own DCU secrets; do not reuse meter keys to authenticate the server-to-concentrator channel.
 - Protect the database, backups, and administration channels. Master-key rotation requires a coordinated re-encryption procedure; losing the key makes existing secrets unrecoverable.
 
-The local migration `sql/008_dcu_connection_data.sql` adds storage and access functions for DCU credentials. **The `sql/` directory is excluded by `.gitignore`, so this migration is not included in a normal public clone.** If the project is published with this exclusion, distribute migrations and instructions through a controlled channel or provide a compatible schema separately. Do not expect the service to work until the required functions and tables have been provisioned.
+The database must have the tables, functions, and profiles required by device and credential configuration. Prepare and apply the corresponding schema before starting the service; building the executable does not create or modify PostgreSQL objects.
 
 ## Plugin system
 
@@ -163,7 +149,7 @@ A plugin is a heartbeat-identification adapter, not a DLMS implementation or an 
 
 At startup, `PluginLoader` searches for dynamic libraries in `./plugins` (`.dll` on Windows, `.so` on Linux), loads the `create_plugin`/`destroy_plugin` symbols, and checks more specific signatures first. The directory is resolved relative to the process working directory. A plugin must be built with an ABI and toolchain compatible with the executable and deployed in that directory.
 
-**Important for GitHub users:** `.gitignore` excludes the entire `plugins/` directory, so plugin sources will not be present in a normal public clone unless published separately or deliberately added to Git. The root CMake project also does not automatically include `plugins/CMakeLists.txt`. In addition, the loader searches `./plugins`, while the local plugin CMake file sets `plugins_build` as its output directory. Packaging/deployment must resolve this difference and provide the required libraries; building the main executable alone is not sufficient.
+The main executable does not automatically build or install plugin libraries. Deploy compatible libraries (`.dll` on Windows, `.so` on Linux) in `./plugins`, relative to the process working directory. Each installation package should build plugins for the executable's platform and ABI and place them in that location.
 
 To add vendor support in a maintainable way:
 
@@ -196,30 +182,16 @@ Building the executable does not apply PostgreSQL migrations, create profiles, o
 
 The shared DLMS/COSEM layer may be reusable when another vendor's DCU implements the same associations and standard services. Transport, outer framing, heartbeat/identification, addressing, security, and concentrator-management operations often differ and must be confirmed using device documentation and traces.
 
-For ZStar/IDIS, the current code has an independent Wrapper listener, separate DCU profile/secret resolution, and an association path with bootstrap/Invocation Counter for secure profiles. However, it has not been validated end-to-end with a DCU, and its storage still depends on the SQL migration excluded by `.gitignore`. The legacy `WriteListMeters()` flow, which registers the list of meters and their keys inside the DCU's DLMS object, has not been ported here. ZStar is therefore outside the currently verified scope until testing and that flow (if required by the product) are complete.
+For ZStar/IDIS, the current code has an independent Wrapper listener, separate DCU profile/secret resolution, and an association path with bootstrap/Invocation Counter for secure profiles. However, it has not been validated end-to-end with a DCU and requires the database to provide the corresponding functions and fields for concentrator-specific secrets. The legacy `WriteListMeters()` flow, which registers the list of meters and their keys inside the DCU's DLMS object, has not been ported here. ZStar is therefore outside the currently verified scope until testing and that flow (if required by the product) are complete.
 
 Recommended next steps:
 
 - Provide versioned and secure database schemas/migrations for profiles, devices, and secrets.
-- Create reproducible plugin packaging (build, ABI, location, and deployment), or decide which plugins will be published with the project.
+- Automate the build, packaging, and deployment of platform-compatible plugins.
 - Add automated heartbeat/framing parser tests and integration tests for DLMS state machines using simulated responses.
 - Validate real equipment and firmware: association, security/HLS, reads, profiles, commands, timeouts, frame fragmentation, and reconnection.
 - Implement vendor adapters only for transport/operation differences, reusing the shared DLMS core where appropriate.
 - Complete and validate DCU meter registration (for example, port `WriteListMeters()` with typed structures and tests) without mixing DCU and meter credentials.
-
-## `.gitignore` exclusions
-
-The current `.gitignore` excludes generated/development artifacts and several deployment/integration directories. Relevant rules include `/extern/`, `/third_party/`, `/plugins/`, `/.agent/`, `/docker/`, `/config/`, `/sql/`, `/.gitattributes`, `/build/`, `/out/`, `.vs/`, Visual Studio solutions/files, binaries, object files, and logs. It also excludes `*.pem`, `*.key`, `*.crt`, `amiconfig.ini`, and `CMakeUserPresets.json`.
-
-A normal publication therefore omits plugin sources, SQL, Docker, local configuration, and `.agent` files, as well as certificates/keys with those extensions and local CMake presets. Users must obtain required components through the distribution channels defined by the maintainer. `.gitignore` rules **do not remove files already tracked by Git**; verify the actual contents of the commit/release before publishing.
-
-## Main repository layout
-
-- `src/`, `include/`: server, sessions, DLMS states, profiles, secrets, and plugin contract/loader.
-- `plugins/`: local plugin implementations, excluded by `.gitignore` unless explicitly published.
-- `sql/`: local schema/migration scripts, excluded by `.gitignore`.
-- `CMakeLists.txt`: build for the main executable.
-- `README.md`, `LICENSE`, `DEPENDENCIES.md`, `THIRD_PARTY_NOTICES.md`, `GURUX_INSTALL.md`: documentation and license notices.
 
 ## License and dependencies
 
